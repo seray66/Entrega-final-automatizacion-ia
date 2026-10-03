@@ -1,0 +1,685 @@
+{
+  "name": "Entrega Final - Propuestas Comerciales",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "subject:(presupuesto OR propuesta OR cotización)"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1120,
+        -352
+      ],
+      "id": "0a67663d-d6dd-4a91-9cef-7b3f21933b4f",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jK5xheQBbiSVZaSL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -896,
+        -352
+      ],
+      "id": "f0bf057d-e8c6-4528-bc8d-b61a66605903",
+      "name": "Get a message",
+      "webhookId": "e927ab59-36e7-4589-9702-5be1cf301ecc",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jK5xheQBbiSVZaSL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "claude-haiku-4-5-20251001"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Extraé los datos clave de este email de un cliente que pide una propuesta comercial. Respondé SOLO con un JSON válido, sin texto adicional, con este formato exacto:\n\n{\"cliente\": \"nombre de quien escribe\", \"email\": \"email del remitente\", \"pedido\": \"resumen de qué necesita el cliente en 1-2 frases\", \"urgencia\": \"alta/media/baja\"}\n\nEmail del cliente:\nAsunto: {{ $json.subject }}\nDe: {{ $json.headers.from }}\nCuerpo: {{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -352
+      ],
+      "id": "41e58420-0921-48cc-b684-ea4c1363163c",
+      "name": "Extraer datos con Claude Haiku",
+      "credentials": {
+        "anthropicApi": {
+          "id": "1ArCoQKoa0YFRVZv",
+          "name": "Anthropic account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3e5fb330-4500-809c-a7ae-000bf64a51ff",
+          "mode": "list",
+          "cachedResultName": "3e5fb330-4500-809c-a7ae-000bf64a51ff",
+          "cachedResultUrl": "https://app.notion.com/p/3e5fb3304500807ba8a8ec014ca4dc62"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        -400,
+        -352
+      ],
+      "id": "0f1a738b-50ab-4cd2-bb2a-8cfcbcf70bdd",
+      "name": "Consultar catálogo de servicios",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $('Extraer datos con Claude Haiku').first().json.content[0].text;\nconst cleaned = raw.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\nconst datos = JSON.parse(cleaned);\n\nconst emailData = $('Get a message').first().json;\n\nconst catalogo = $('Consultar catálogo de servicios').all().map(item => item.json);\nconst catalogoTexto = catalogo.map(s =>\n  `- ${s.property_servicio}: $${s.property_precio} — ${s.property_descripción} (${s.property_condiciones})`\n).join('\\n');\n\nreturn [{\n  json: {\n    cliente: datos.cliente,\n    email: datos.email,\n    pedido: datos.pedido,\n    urgencia: datos.urgencia,\n    email_id: emailData.id,\n    subject_original: emailData.subject,\n    catalogo_texto: catalogoTexto\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -352
+      ],
+      "id": "a80030f3-3bc5-439c-8fd4-0a8c1f616fc2",
+      "name": "Combinar datos para propuesta"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-sonnet-4-5-20250929",
+          "mode": "list",
+          "cachedResultName": "claude-sonnet-4-5-20250929"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Sos un asistente comercial que redacta propuestas para el negocio de automatización con IA de Sergio Ayala. Con los datos del cliente y el catálogo de servicios de abajo, redactá una propuesta comercial profesional, cálida pero directa, en español de latinoamérica.\n\nLa propuesta debe incluir:\n1. Saludo personalizado con el nombre del cliente.\n2. Breve resumen de lo que el cliente pidió (mostrando que entendiste su necesidad).\n3. El o los servicios del catálogo que mejor se ajustan a su pedido, con su precio y condiciones.\n4. Un cierre invitando a coordinar una llamada o responder el email para avanzar.\n\nNo inventes servicios ni precios que no estén en el catálogo. Si el pedido no tiene datos suficientes para elegir un servicio con confianza, decilo explícitamente al final del texto con la frase exacta: \"DATOS INSUFICIENTES\".\n\nDatos del cliente:\nNombre: {{ $json.cliente }}\nPedido: {{ $json.pedido }}\nUrgencia: {{ $json.urgencia }}\n\nCatálogo de servicios disponibles:\n{{ $json.catalogo_texto }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -352
+      ],
+      "id": "5375cad8-1591-4262-afb9-6acb10d984f6",
+      "name": "Redactar propuesta con Claude Sonnet",
+      "credentials": {
+        "anthropicApi": {
+          "id": "1ArCoQKoa0YFRVZv",
+          "name": "Anthropic account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3e5fb330-4500-809c-b6e6-000bc8b03b13",
+          "mode": "list",
+          "cachedResultName": "Pedidos",
+          "cachedResultUrl": "https://app.notion.com/p/3e5fb330450080f3a5eff6e4fc71354b"
+        },
+        "title": "={{ $('Combinar datos para propuesta').item.json.cliente }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Email|rich_text",
+              "textContent": "={{ $('Combinar datos para propuesta').item.json.email }}"
+            },
+            {
+              "key": "Pedido original|rich_text",
+              "textContent": "={{ $('Combinar datos para propuesta').item.json.pedido }}"
+            },
+            {
+              "key": "Propuesta generada|rich_text",
+              "textContent": "={{ $json.content[0].text }}"
+            },
+            {
+              "key": "Estado|select",
+              "selectValue": "Procesado por IA"
+            },
+            {
+              "key": "Última ejecución|date",
+              "date": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        272,
+        -336
+      ],
+      "id": "84878595-bd76-4c23-ba17-8ff315db07b4",
+      "name": "Crea pedido en Notion",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "event": "pagedUpdatedInDatabase",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3e5fb330-4500-809c-b6e6-000bc8b03b13",
+          "mode": "list",
+          "cachedResultName": "Pedidos",
+          "cachedResultUrl": "https://app.notion.com/p/3e5fb330450080f3a5eff6e4fc71354b"
+        }
+      },
+      "type": "n8n-nodes-base.notionTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1120,
+        16
+      ],
+      "id": "ea3d6423-4c59-4fe9-bc28-71967030a687",
+      "name": "Detectar aprobación humana",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2603bad8-eb35-405a-9484-6a541857321a",
+              "leftValue": "={{ $json.Estado }}",
+              "rightValue": "Aprobado por Humano",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -912,
+        32
+      ],
+      "id": "fa5781cd-0b27-4fee-8a4b-c2017eb6dc5e",
+      "name": "Filtro: solo aprobados"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "=Propuesta comercial para {{ $json.Cliente }}",
+        "message": "={{ $json.propuesta_html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        32
+      ],
+      "id": "9830bff0-77fa-4247-ba45-1ec3e74c5ef5",
+      "name": "Enviar propuesta por Gmail",
+      "webhookId": "11c8052d-d0a4-4c53-85b4-1032018cceed",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jK5xheQBbiSVZaSL",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const texto = $json['Propuesta generada'];\n\nconst html = texto\n  .replace(/\\n/g, '<br>')\n  .replace(/\\*\\*(.*?)\\*\\*/g, '<b>$1</b>')\n  .replace(/---/g, '<hr>');\n\nreturn [{\n  json: {\n    ...$json,\n    propuesta_html: html\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        16
+      ],
+      "id": "531108d9-aeb8-4272-9946-ade7fa7c3d68",
+      "name": "Convertir propuesta a HTML"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Detectar aprobación humana').item.json.id }}",
+          "__regex": "^([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Estado|select",
+              "selectValue": "Enviado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        -288,
+        32
+      ],
+      "id": "8686afbf-4345-45e6-9c63-197be6efd80d",
+      "name": "Marcar pedido como enviado",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3e5fb330-4500-803b-8b53-000bed3fa309",
+          "mode": "list",
+          "cachedResultName": "3e5fb330-4500-803b-8b53-000bed3fa309",
+          "cachedResultUrl": "https://app.notion.com/p/3e5fb3304500808c86f0c05d0b8e2590"
+        },
+        "title": "={{ 'ERR-' + $now.toMillis() }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Fecha y hora|date",
+              "date": "={{ $now }}"
+            },
+            {
+              "key": "Nodo que falló|rich_text",
+              "textContent": "Extraer datos con Claude Haiku"
+            },
+            {
+              "key": "Tipo de error|select",
+              "selectValue": "=API Claude"
+            },
+            {
+              "key": "Mensaje de error|rich_text",
+              "textContent": "={{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        -448,
+        -144
+      ],
+      "id": "f324d55f-274c-4d60-87ba-fb0159306213",
+      "name": "Registrar error - Extracción de datos",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3e5fb330-4500-803b-8b53-000bed3fa309",
+          "mode": "list",
+          "cachedResultName": "3e5fb330-4500-803b-8b53-000bed3fa309",
+          "cachedResultUrl": "https://app.notion.com/p/3e5fb3304500808c86f0c05d0b8e2590"
+        },
+        "title": "={{ 'ERR-' + $now.toMillis() }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Fecha y hora|date",
+              "date": "={{ $now }}"
+            },
+            {
+              "key": "Nodo que falló|rich_text",
+              "textContent": "Redactar propuesta con Claude Sonnet"
+            },
+            {
+              "key": "Tipo de error|select",
+              "selectValue": "API Claude"
+            },
+            {
+              "key": "Mensaje de error|rich_text",
+              "textContent": "={{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        208,
+        -112
+      ],
+      "id": "b8cdc7eb-d73c-4a8a-9d6f-0751784e35e9",
+      "name": "Registrar error - Redacción de propuesta",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3e5fb330-4500-803b-8b53-000bed3fa309",
+          "mode": "list",
+          "cachedResultName": "3e5fb330-4500-803b-8b53-000bed3fa309",
+          "cachedResultUrl": "https://app.notion.com/p/3e5fb3304500808c86f0c05d0b8e2590"
+        },
+        "title": "={{ 'ERR-' + $now.toMillis() }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Fecha y hora|date",
+              "date": "={{ $now }}"
+            },
+            {
+              "key": "Nodo que falló|rich_text",
+              "textContent": "Enviar propuesta por Gmail"
+            },
+            {
+              "key": "Tipo de error|select",
+              "selectValue": "API Gmail"
+            },
+            {
+              "key": "Mensaje de error|rich_text",
+              "textContent": "={{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        -320,
+        256
+      ],
+      "id": "2f45cba9-ceb7-4235-83dd-e78a9ce1ebe7",
+      "name": "Registrar error - Envío de propuesta",
+      "credentials": {
+        "notionApi": {
+          "id": "1if1tkeseM0MFch7",
+          "name": "Notion account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Gmail Trigger": [
+      {
+        "json": {
+          "id": "1a0eeeaeb4d1c799",
+          "threadId": "1a0eeeaeb4d1c799",
+          "snippet": "Hola, Tengo un sistema viejo en VB6 con SQL Server y quiero modernizarlo incorporando automatización con IA. Necesito una propuesta. Saludos.",
+          "payload": {
+            "mimeType": "multipart/alternative"
+          },
+          "sizeEstimate": 12002,
+          "historyId": "2972713",
+          "internalDate": "1790714765000",
+          "labels": [
+            {
+              "id": "INBOX",
+              "name": "INBOX"
+            },
+            {
+              "id": "IMPORTANT",
+              "name": "IMPORTANT"
+            },
+            {
+              "id": "CATEGORY_PERSONAL",
+              "name": "CATEGORY_PERSONAL"
+            },
+            {
+              "id": "UNREAD",
+              "name": "UNREAD"
+            }
+          ],
+          "From": "Sergio Ayala <seray_666@outlook.com>",
+          "To": "\"ayala.sergio@gmail.com\" <ayala.sergio@gmail.com>",
+          "Subject": "Propuesta para modernizar sistema"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Extraer datos con Claude Haiku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer datos con Claude Haiku": {
+      "main": [
+        [
+          {
+            "node": "Consultar catálogo de servicios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar error - Extracción de datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar catálogo de servicios": {
+      "main": [
+        [
+          {
+            "node": "Combinar datos para propuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combinar datos para propuesta": {
+      "main": [
+        [
+          {
+            "node": "Redactar propuesta con Claude Sonnet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar propuesta con Claude Sonnet": {
+      "main": [
+        [
+          {
+            "node": "Crea pedido en Notion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar error - Redacción de propuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar aprobación humana": {
+      "main": [
+        [
+          {
+            "node": "Filtro: solo aprobados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro: solo aprobados": {
+      "main": [
+        [
+          {
+            "node": "Convertir propuesta a HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir propuesta a HTML": {
+      "main": [
+        [
+          {
+            "node": "Enviar propuesta por Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar propuesta por Gmail": {
+      "main": [
+        [
+          {
+            "node": "Marcar pedido como enviado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar error - Envío de propuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ee6899f0-e0e4-4412-aeb5-e7efcc381a1e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e5b7c98563de60eb27fdd64ff9733ec78226a47c80abe013cd22738c3b379374"
+  },
+  "nodeGroups": [],
+  "id": "3AvsXjP7s91FDmhR",
+  "tags": []
+}
